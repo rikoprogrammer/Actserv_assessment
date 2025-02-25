@@ -1,0 +1,137 @@
+---
+title: "Assessment"
+author: "Eric Odongo"
+date: "2025-02-22"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Part 1: Data Processing
+
+**Tasks**
+
+1. Load the dataset and cast it into a data.table.
+
+```{r}
+
+library(nycflights13)
+library(data.table)
+library(RSQLite)
+
+
+#load the dataframe and convert to a data.table
+
+data('flights')
+
+flightsDT <- as.data.table(flights)
+
+class(flightsDT)
+
+```
+
+
+2. Perform the following transformations:
+
+– Compute the average departure delay for each airline.
+
+```{r}
+
+#get the airlines data set and merge on flights data set to extract the airline names
+
+data('airlines')
+
+airlinesDT <- as.data.table(airlines)
+
+flightsDT[airlinesDT, on = 'carrier', airline_name := i.name]
+
+
+#summarize by airline
+
+flightsDT[, mean(dep_delay, na.rm = T), by = airline_name] |> 
+  knitr::kable(col.names = c('Airline', 'Average Departure Delay'),
+               digits = 3)
+
+
+```
+
+
+– Find the top 5 destinations with the most flights.
+
+```{r}
+
+#get airport names
+
+data('airports')
+
+airportsDT <- data.table(airports)
+
+setnames(airportsDT, 'faa', 'dest')
+
+flightsDT[airportsDT[, c('dest','name')], on = 'dest', airport_name := i.name]
+
+
+top_dest <- flightsDT[, by = airport_name, .N][order(-N)][1:5]
+
+top_dest |> 
+  knitr::kable()
+
+
+```
+
+Top five airport destinations with the most flights are Chicago Ohare Intl, Hartsfield Jackson Atlanta Intl, Los Angeles Intl, General Edward Lawrence Logan Intl, and Orlando Intl.
+
+\newpage
+
+– Create two new columns:
+
+• one which is a unique id for each row/flight.
+
+```{r}
+
+flightsDT[, id := .I]
+
+```
+
+
+• and another indicating whether a flight was delayed for more than 15
+minutes.
+
+```{r}
+
+flightsDT[, indicator := ifelse(dep_delay > 15, 'delayed', 'not delayed')]
+
+table(flightsDT$indicator)
+
+```
+
+
+
+3. Save the processed data as a CSV or an SQLite database file.
+
+```{r}
+
+write.csv(flightsDT, 'Data/flights_final.csv')
+
+#save to a database file
+
+# Set up database
+
+drv <- dbDriver("SQLite")
+tfile <- "Data/nycflights.db"
+
+con <- dbConnect(drv, dbname = "Data/nycflights.db")
+
+dbWriteTable(con, "flightsDT", as.data.frame(flightsDT))
+dbDisconnect(con)
+
+```
+
+\newpage
+
+## Part 2: JSON Data API
+
